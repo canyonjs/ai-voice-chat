@@ -3,7 +3,7 @@ import openai
 import requests
 from dotenv import load_dotenv
 from os import getenv
-from sys import exit
+from sys import exit, stdout
 from elevenlabs import set_api_key, Voice, VoiceSettings, generate, play, stream
 
 load_dotenv()
@@ -63,8 +63,9 @@ def query_chatgpt(prompt):
     ):
         content = chunk["choices"][0].get("delta", {}).get("content")
         if content is not None:
-            # TODO: Only prints after all chunks returned, modify to write to stdout as streaming.
-            print(content, end="")
+            # Write out response
+            stdout.write(content)
+            stdout.flush()
             yield content
 
 def synthesize_speech(text_stream):
