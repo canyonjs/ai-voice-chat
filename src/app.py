@@ -15,8 +15,8 @@ microphone = sr.Microphone()
 # General Configuration
 openai.api_key = getenv("OPENAI_API_KEY")
 TRANSCRIBE_RETRY_ATTEMPTS = 3
-OPENAI_ENGINE = "text-davinci-002"
-OPENAI_MAX_RESPONSE_TOKENS = 50
+OPENAI_ENGINE = "gpt-3.5-turbo"
+OPENAI_MAX_RESPONSE_TOKENS = 125
 
 
 # Elevenlabs Configuration
@@ -51,13 +51,14 @@ def transcribe_speech(recognizer, microphone):
         return transcription_response
 
 def query_chatgpt(prompt):
-    response = openai.Completion.create(
-        engine=OPENAI_ENGINE,  # You can use other engines like "text-davinci-001" or "text-davinci-003" as well
-        max_tokens=OPENAI_MAX_RESPONSE_TOKENS, # You can adjust this based on the desired response length
-        prompt=prompt
-    )
-    
-    return response.choices[0].text
+    # response = openai.Completion.create(
+    #     engine=OPENAI_ENGINE,  # You can use other engines like "text-davinci-001" or "text-davinci-003" as well
+    #     max_tokens=OPENAI_MAX_RESPONSE_TOKENS, # You can adjust this based on the desired response length
+    #     prompt=prompt
+    # )
+
+    response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
+    return response.choices[0].message.content
 
 if __name__ == "__main__":
     for attempt in range(TRANSCRIBE_RETRY_ATTEMPTS):
