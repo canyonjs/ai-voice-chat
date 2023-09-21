@@ -8,16 +8,21 @@ from elevenlabs import set_api_key, Voice, VoiceSettings, generate, play
 
 load_dotenv()
 
-openai.api_key = getenv("OPENAI_API_KEY")
-set_api_key(getenv("ELEVENLABS_API_KEY"))
 
 recognizer = sr.Recognizer()
 microphone = sr.Microphone()
 
-# Elevenlabs Config
-elevenlabs_dorothy_id = "ThT5KcBeYPX3keUQqHPh"
-
+# General Configuration
+openai.api_key = getenv("OPENAI_API_KEY")
 TRANSCRIBE_RETRY_ATTEMPTS = 3
+OPENAI_ENGINE = "text-davinci-002"
+OPENAI_MAX_RESPONSE_TOKENS = 50
+
+
+# Elevenlabs Configuration
+set_api_key(getenv("ELEVENLABS_API_KEY"))
+elevenlabs_voice_id = "ThT5KcBeYPX3keUQqHPh" # Dorothy
+
 
 
 def transcribe_speech(recognizer, microphone):
@@ -27,56 +32,65 @@ def transcribe_speech(recognizer, microphone):
 
         transcription_response = {
             "content": "",
-            "error_code": 0
+            "error_code": None
         }
 
-        for j in range(TRANSCRIBE_RETRY_ATTEMPTS):
-            print("Listening...")
-            try:
-                transcription_response.content = recognizer.recognize_google(audio, language="en-US")
-                break
-            except sr.RequestError:
-                transcription_response.content = "Transcription API unavailable"
-                transcription_response.error_code = 1
-                break
-            except sr.UnknownValueError:
-                print("I couldn't understand you, please try again.")
-                transcription_response.content = "Unrecognized speech"
-                transcription_response.error_code = 2
+        try:
+            transcription_response["content"] = recognizer.recognize_google(audio, language="en-US")
+            transcription_response["error_code"] = 0
+        except sr.RequestError:
+            transcription_response["content"] = "Transcription API unavailable"
+            transcription_response["error_code"] = 1
+        except sr.UnknownValueError:
+            transcription_response["content"] = "I couldn't understand you, please try again."
+            transcription_response["error_code"] = 2
+        except Exception as err:
+            transcription_response["content"] = f"An error has occurred. {err}"
+            transcription_response["error_code"] = 3
         
         return transcription_response
 
 def query_chatgpt(prompt):
     response = openai.Completion.create(
-        engine="text-davinci-002",  # You can use other engines like "text-davinci-001" or "text-davinci-003" as well
-        prompt=prompt,
-        max_tokens=50  # You can adjust this based on the desired response length
+        engine=OPENAI_ENGINE,  # You can use other engines like "text-davinci-001" or "text-davinci-003" as well
+        max_tokens=OPENAI_MAX_RESPONSE_TOKENS, # You can adjust this based on the desired response length
+        prompt=prompt
     )
     
     return response.choices[0].text
 
 if __name__ == "__main__":
-    prompt = transcribe_speech(recognizer, microphone)
+    for attempt in range(TRANSCRIBE_RETRY_ATTEMPTS):
+        print("Listening...")
+        transcription_response = transcribe_speech(recognizer, microphone)
+        
+        if transcription_response["error_code"] == 0:
+            prompt = transcription_response["content"]
+            print(f"Prompt: {prompt}")
+            break
+        elif transcription_response["error_code"] == 2:
+            print(f"{transcription_response['content']} | Error code: {str(transcription_response['error_code'])}")
 
-    if prompt.error_code != "0":
-        print(f"Something went wrong or you exhausted your retry attempts. Error code: {str(prompt.error_code)} | {prompt.content}")
-        exit()
+            if attempt == TRANSCRIBE_RETRY_ATTEMPTS - 1:
+                print("Speech transcription retries exhausted.")
+                exit()
+        elif transcription_response["error_code"] == 1 or transcription_response["error_code"] == 3:
+            print(f"{transcription_response['content']} | Error code: {str(transcription_response['error_code'])}")
+            exit()
+   
 
-
-    print("Prompt:", prompt)
     print("Sending to ChatGPT...")
 
     query_response = query_chatgpt(prompt)
-    print("Response:", query_response)
+    print(f"Response: {query_response}")
 
     print("Generating audio...")
-    audio = generate(
-        text=llm_response,
+    synthesized_response = generate(
+        text=query_response,
         voice=Voice(
-            voice_id=elevenlabs_dorothy_id,
+            voice_id=elevenlabs_voice_id,
             settings=VoiceSettings(stability=0.71, similarity_boost=0.5, style=0.0, use_speaker_boost=True)
         )
     )
     
-    play(audio)
-    print(llm_response)
+    play(synthesized_response)
