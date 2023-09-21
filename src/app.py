@@ -15,14 +15,15 @@ microphone = sr.Microphone()
 # General Configuration
 openai.api_key = getenv("OPENAI_API_KEY")
 TRANSCRIBE_RETRY_ATTEMPTS = 3
-OPENAI_ENGINE = "gpt-3.5-turbo"
+OPENAI_MODEL = "gpt-3.5-turbo"
 OPENAI_MAX_RESPONSE_TOKENS = 125
 HIDDEN_PROMPT = "Ensure that your response is concise. "
 
 
 # Elevenlabs Configuration
 set_api_key(getenv("ELEVENLABS_API_KEY"))
-elevenlabs_voice_id = "ThT5KcBeYPX3keUQqHPh" # Dorothy
+ELEVENLABS_VOICE_NAME = "Dorothy"
+ELEVENLABS_MODEL_NAME = "eleven_monolingual_v1"
 
 
 
@@ -52,14 +53,9 @@ def transcribe_speech(recognizer, microphone):
         return transcription_response
 
 def query_chatgpt(prompt):
-    # response = openai.Completion.create(
-    #     engine=OPENAI_ENGINE,  # You can use other engines like "text-davinci-001" or "text-davinci-003" as well
-    #     max_tokens=OPENAI_MAX_RESPONSE_TOKENS, # You can adjust this based on the desired response length
-    #     prompt=prompt
-    # )
-
+    print("Response:")
     for chunk in openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model=OPENAI_MODEL,
         messages=[{"role": "user", "content": HIDDEN_PROMPT + prompt}],
         stream=True,
         temperature=0,
@@ -67,13 +63,15 @@ def query_chatgpt(prompt):
     ):
         content = chunk["choices"][0].get("delta", {}).get("content")
         if content is not None:
+            # TODO: Only prints after all chunks returned, modify to write to stdout as streaming.
+            print(content, end="")
             yield content
 
 def synthesize_speech(text_stream):
     audio_stream = generate(
         text=text_stream,
-        voice="Nicole",
-        model="eleven_monolingual_v1",
+        voice=ELEVENLABS_VOICE_NAME,
+        model=ELEVENLABS_MODEL_NAME,
         stream=True
     )
 
@@ -100,7 +98,7 @@ if __name__ == "__main__":
             exit()
    
 
-    print("Querying ChatGPT and synthesizing via ElevenLabs...")
+    print("Querying and synthesizing speech...")
 
     stream(synthesize_speech(query_chatgpt(prompt)))
 
