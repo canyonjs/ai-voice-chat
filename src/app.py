@@ -4,7 +4,7 @@ import requests
 from dotenv import load_dotenv
 from os import getenv
 from sys import exit
-from elevenlabs import set_api_key, Voice, VoiceSettings, generate, play
+from elevenlabs import set_api_key, Voice, VoiceSettings, generate, play, stream
 
 load_dotenv()
 
@@ -17,6 +17,7 @@ openai.api_key = getenv("OPENAI_API_KEY")
 TRANSCRIBE_RETRY_ATTEMPTS = 3
 OPENAI_ENGINE = "gpt-3.5-turbo"
 OPENAI_MAX_RESPONSE_TOKENS = 125
+HIDDEN_PROMPT = "Ensure that your response is concise. "
 
 
 # Elevenlabs Configuration
@@ -57,8 +58,27 @@ def query_chatgpt(prompt):
     #     prompt=prompt
     # )
 
-    response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
-    return response.choices[0].message.content
+    for chunk in openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": HIDDEN_PROMPT + prompt}],
+        stream=True,
+        temperature=0,
+        max_tokens=OPENAI_MAX_RESPONSE_TOKENS
+    ):
+        content = chunk["choices"][0].get("delta", {}).get("content")
+        if content is not None:
+            yield content
+
+def synthesize_speech(text_stream):
+    audio_stream = generate(
+        text=text_stream,
+        voice="Nicole",
+        model="eleven_monolingual_v1",
+        stream=True
+    )
+
+    return audio_stream
+
 
 if __name__ == "__main__":
     for attempt in range(TRANSCRIBE_RETRY_ATTEMPTS):
@@ -80,18 +100,7 @@ if __name__ == "__main__":
             exit()
    
 
-    print("Sending to ChatGPT...")
+    print("Querying ChatGPT and synthesizing via ElevenLabs...")
 
-    query_response = query_chatgpt(prompt)
-    print(f"Response: {query_response}")
+    stream(synthesize_speech(query_chatgpt(prompt)))
 
-    print("Generating audio...")
-    synthesized_response = generate(
-        text=query_response,
-        voice=Voice(
-            voice_id=elevenlabs_voice_id,
-            settings=VoiceSettings(stability=0.71, similarity_boost=0.5, style=0.0, use_speaker_boost=True)
-        )
-    )
-    
-    play(synthesized_response)
