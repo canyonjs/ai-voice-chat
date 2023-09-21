@@ -18,6 +18,7 @@ TRANSCRIBE_RETRY_ATTEMPTS = 3
 OPENAI_MODEL = "gpt-3.5-turbo"
 OPENAI_MAX_RESPONSE_TOKENS = 125
 HIDDEN_PROMPT = "Ensure that your response is concise. "
+OPENAI_MODEL_TEMPERATURE = 0
 
 
 # Elevenlabs Configuration
@@ -58,7 +59,7 @@ def query_chatgpt(prompt):
         model=OPENAI_MODEL,
         messages=[{"role": "user", "content": HIDDEN_PROMPT + prompt}],
         stream=True,
-        temperature=0,
+        temperature=OPENAI_MODEL_TEMPERATURE,
         max_tokens=OPENAI_MAX_RESPONSE_TOKENS
     ):
         content = chunk["choices"][0].get("delta", {}).get("content")
